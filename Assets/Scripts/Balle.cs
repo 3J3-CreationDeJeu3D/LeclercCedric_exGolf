@@ -15,6 +15,7 @@ public class Balle : MonoBehaviour
     [Header("État de jeu")]
     Vector3 positionBalle;
     private int nbCoups;
+    public bool peutJouer;
 
 
     [Header("Paramètres de tir")]
@@ -24,7 +25,7 @@ public class Balle : MonoBehaviour
 
     [Header("Gauge de force")]
     [SerializeField] float forceTir;
-    [SerializeField] float accumulateurForce = 2f;
+    [SerializeField] float accumulateurForce = 1f;
 
     [SerializeField] Slider jaugeForce;
 
@@ -47,37 +48,45 @@ public class Balle : MonoBehaviour
         lineRendererBalle = GetComponent<LineRenderer>();
         audioSourceBalle = GetComponent<AudioSource>();
         nbCoups = 0;
+        MettreAJourUI();
+        peutJouer = true;
     }
 
     void Update()
     {
-        angleTir += angleAction.ReadValue<float>();
-        Vector3 direction = Quaternion.Euler(0,angleTir, 0) * Vector3.forward;
-        lineRendererBalle.SetPosition(0, transform.position);
-        lineRendererBalle.SetPosition(1, transform.position + direction);
+        if (peutJouer && GestionnaireJeu.instance.etat == "jeu")
+        {
+            angleTir += angleAction.ReadValue<float>();
+            Vector3 direction = Quaternion.Euler(0, angleTir, 0) * Vector3.forward;
+            lineRendererBalle.SetPosition(0, transform.position);
+            lineRendererBalle.SetPosition(1, transform.position + direction);
 
-        if (tirAction.WasPressedThisFrame())
+            if (tirAction.WasPressedThisFrame())
         {
             forceTir = 0;
             jaugeForce.value = forceTir;
         }
-        if (tirAction.IsPressed())
+            if (tirAction.IsPressed())
         {
             forceTir+= accumulateurForce;
             forceTir = Mathf.Clamp(forceTir,jaugeForce.minValue,jaugeForce.maxValue);
             jaugeForce.value = forceTir;
         }
-        if (tirAction.WasReleasedThisFrame())
+            if (tirAction.WasReleasedThisFrame())
         {
             //Envoyer balle
             positionBalle = transform.position;
-            rbBalle.AddForce(direction*forceTir*Time.deltaTime, ForceMode.Impulse);
+            rbBalle.AddForce(direction*(forceTir*2)*Time.deltaTime, ForceMode.Impulse);
             forceTir = 0;
             jaugeForce.value = forceTir;
             nbCoups++;
+
+            MettreAJourUI();
+            StartCoroutine(AttendreFinCoup());
         }
 
-        coupsTexte.text = $"{nbCoups} coup(s)";
+            coupsTexte.text = $"{nbCoups} coup(s)";
+        }
     }
 
     void OnCollisionEnter(Collision collision)
@@ -95,6 +104,7 @@ public class Balle : MonoBehaviour
     {
         if(collision.gameObject.tag == "trou")
         {
+            peutJouer = false;
             audioSourceBalle.PlayOneShot(sonFin);
             rbBalle.linearVelocity = Vector3.zero;
             rbBalle.angularVelocity = Vector3.zero;
@@ -104,6 +114,24 @@ public class Balle : MonoBehaviour
     }
 
     // ===================
+    IEnumerator AttendreFinCoup()
+    {
+        Debug.Log("Debut");
+        peutJouer = false;
+        lineRendererBalle.enabled = false;
+        yield return new WaitForFixedUpdate();// Attends de calculer la physique
+        // yield return new WaitForSeconds(2); // Attend 2 secondes
+        float vitesse = rbBalle.linearVelocity.magnitude;
+        while(vitesse>0.1f)
+        {
+            vitesse = rbBalle.linearVelocity.magnitude;
+            yield return null; //Attends au prochain frame
+        }
+
+        lineRendererBalle.enabled = true;
+        peutJouer = true;
+        Debug.Log("Fin");
+    }
     void FrapperBalle()
     {
 
@@ -111,6 +139,7 @@ public class Balle : MonoBehaviour
 
     void MettreAJourUI()
     {
+        
     }
 
     // IEnumerator FinJeu()
